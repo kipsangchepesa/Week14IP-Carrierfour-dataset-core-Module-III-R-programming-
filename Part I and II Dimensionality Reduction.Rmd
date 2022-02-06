@@ -1,0 +1,188 @@
+---
+title: "Part I and II Dimensionality Reduction"
+author: "KIpsang"
+date: "2/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Marketing Analysis.
+
+## 1. Main objective: 
+* Getting the most relevant marketing strategies that will result in the highest number of sales ( Total price tax inclusive)
+### Specific Objectives
+* Reduce highly dimensional datasets to lower dimensions for easy interpratation and analysis while assessing the attributes carrying core information in our dataset.
+ * Getting important attributes from the dataset.
+ * Getting associations within the transactions that will uncover important relationships for effective marketing.
+ * Checking for anomalies in the sales dataset for the sole purpose of fraud detection.
+
+## 2. Data Inspection.
+```{r}
+library(data.table)
+df<-fread("http://bit.ly/CarreFourDataset")
+head(df)
+```
+#### Checking for missing values 
+
+```{r}
+# Checking for missing values
+any(is.na.data.frame(df))
+# There are no missing values
+```
+#### Checking for duplicated values
+
+```{r}
+# Checking for duplicated data
+any(duplicated.data.frame(df))
+# There are no duplicates in our dataset
+```
+#### Encoding categorical variables to nominal to perform PCA
+```{r}
+library("dplyr")
+
+numerical<-select_if(df,is.numeric)
+numerical
+```
+
+
+```{r}
+# Selecting non numeric columns
+head(df)
+# Caret package for dummy variables
+library(caret)
+# Encoding using Dummy variables and excluding unique ID and date time data
+dums<-dummyVars("~.",data=df[,c(-1,-9,-10)])
+dums
+# Encoding.
+new_df<-data.frame(predict(dums,newdata =df[,c(-1,-9,-10)]))
+new_df
+```
+
+
+```{r}
+# Dimensionality Reduction technique
+# Will use PCA so as to understand the variance displayed by each feature
+reduced_df<-prcomp(new_df,center = TRUE)
+# Since prcomp uses single value decomposition that tests each points covariance and correlation to each other.
+reduced_df$sdev
+# Checking the standard deviation of each PC
+plot(reduced_df$sdev,main="Standard deviation of each Principal Component",ylab = "Standard Deviation",xlab = "Princial Components",type = "bar",col="blue")
+```
+### We can observe that the first three Principal components have a significant standard deviation in our dataset
+
+```{r}
+library(factoextra)
+# Getting the sum of square distances from the projected point in our data
+eigen_values<-get_eigenvalue(reduced_df)
+eigen_values
+# We get to understand from these that dimension 1 or PCA 1 explains almost 99 % of all the variance in my dataset
+```
+```{r}
+summary(reduced_df)
+```
+### An importanct factor was noted that in formulating dummy variables it recreated varibales with no variablility that is ranging between 0 and 1 and since PCA maximized on utilizing variablities , i am resulted to embarking on my numerical variables to carry out PCA effectively.
+
+
+
+```{r}
+# This set seemed to have an anomaly as it was preventing scalability in the pca function. there is no variability in this column
+unique(df$`gross margin percentage`)
+```
+### New PCA 
+
+```{r}
+# Columns that are numeric are more thus i will exclude non numeric columns
+pca_d<-prcomp(df[,c(6,7,8,12,14,15,16)],scale. = TRUE)
+summary(pca_d)
+# PC1 explains about 70% of variation in our dataset followed by PC2
+```
+
+```{r}
+# Plotting a scree plot of the Principle components explained variance
+library(factoextra)
+fviz_eig(pca_d)
+# From the scree plot above we can see that only PC1 ,PC2 and PC3 contain core information about our set that we will concentrate on that
+```
+
+```{r}
+# Getting the variables that contributed to the principle components
+library(ggbiplot)
+ggbiplot(pca_d,obs.scale = 1,var.scale = 1,varname.adjust = 0.6,circle = TRUE)
+# Rating contributes positively to PC1 which holds the core information of our dataset 
+# Most variables are clustered together at negative value of PC1
+```
+
+```{r}
+str(df)
+```
+
+
+```{r}
+# Getting the distribution of our categorical columns in the reduced dimension 
+ggbiplot(pca_d,obs.scale = 1,var.scale = 1,varname.adjust = 0.6,circle = TRUE,groups =df$Payment)
+# Payment by Credit card and E-wallet is rampant and seems to be heavily clustered across core information(one with the highest variation) in the dataset
+```
+
+```{r}
+# an attempt to extract information from the lower principal components
+ggbiplot(pca_d,choice=c(3,4),obs.scale = 1,var.scale = 1,varname.adjust = 0.6,circle = TRUE,groups =df$Payment)
+# Its not easily interpratable.
+```
+## PartII on Feature Selection
+
+
+Performing elbow method to find appropriate number of clusters so as not to get the correct weights of the Entropy weighted Kmeans feature selection function
+```{r}
+# Normalizing so as to perform cluster based feature selection using min max scaler
+normalize<-function(x){
+  return ((x-min(x))/(max(x)-min(x)))}
+```
+
+#### Normalizing Features
+```{r}
+norm_df<-as.data.frame(lapply(new_df, normalize))
+summary(norm_df)
+```
+
+
+```{r}
+# Using the encoded set of data excluding the gross margin which is non variant. 4 are the optimum clusters
+fviz_nbclust(norm_df[,c(-21)],FUNcluster = kmeans,method = "wss") 
+```
+# Using Embedding methods: Entropy Weighted K means
+
+```{r}
+library(wskm)
+#Setting the initial clusters as 3 first and a variable for weight distribution
+# We get to see the importance of every variable to the kmeans cluster
+# We will exclude the gross margin percentage as its inclusion would give us errors in distance metrics.
+
+my_model<-ewkm(norm_df[,c(-21)],2,lambda = 2,maxiter=1000)
+my_model
+```
+
+```{r}
+library(cluster)
+# Plotting the cluster with 2 as my maximum clusters
+fviz_cluster(my_model,data=norm_df[,c(-21)])
+```
+
+
+```{r}
+# We get to the the importance of each parameter to the individual clusters
+(my_model$weights)*10000
+```
+#### Important variables to cluster one are
+* cogs
+* income
+* Total
+* Tax
+
+#### Important variables to cluster two are
+* Price
+* Quantity
+* gross Income
+* Total
