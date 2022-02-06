@@ -1,0 +1,100 @@
+---
+title: "part3 Association rules"
+author: "KIpsang"
+date: "2/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Association analysis
+The aim of this is to find the relationship in the transactions below to optimize supermarket purchases
+
+```{r}
+# Loading the dataset for association
+
+library(arules)
+path_trans<-"http://bit.ly/SupermarketDatasetII"
+
+assoc_df<-read.transactions(path_trans,sep=',')
+assoc_df
+``` 
+
+```{r}
+# Previewing a quick summary of my dataset to understand the purchases
+summary(assoc_df)
+# Mineral water eggs spaghetti,fries seem to be leading in popularity (as individual items)
+```
+ 
+The most frequent items:mineral water at 1788 times being bought followed by eggs at  1348, spaghetti 1306  french fries 1282, chocolate 1229 and Other  22405 
+
+
+
+```{r}
+# Plotting item frequency considering the top 20 items
+par(mfcol=c(1,2))
+itemFrequencyPlot(assoc_df,topN=20,col="blue",ylab="Item frequency",main=" Item Frequency Plots")
+itemFrequencyPlot(assoc_df,support=0.09,col="darkblue",ylab="Frequency > 0.1 support")
+# Mineral water is still taking the lead even with the minimum support at 0.09.
+```
+## Apriori algoritm to build association rules
+```{r}
+# The first rules 
+rule1<-apriori(assoc_df,parameter = list(support=0.001,conf=0.8))
+rule1
+# With a restriction of a support of 0.001 (freq(X)/Total transactions) and a confidence of 80% the items were filtered to 74 items. We seem to have lost important rules as 74 is very little to work with
+```
+
+
+
+```{r}
+# Visualizing this in an association plot
+#install.packages("arulesViz")
+library(arulesViz)
+plot(rule1,type = "graph",control=list(type="items"))
+# As much as we can see a positive correlation between confidence and support there are a few datapoints which are not popular but have a large confidence thus meaning they are bought in conjunction to other items(They are less likely to be bought alone).
+```
+
+
+
+```{r}
+inspect(rule1[1:10])
+# We are 95 % confident that for every transaction of {mushroom cream sauce, pasta}, escalope was bought along with it.
+```
+
+```{r}
+# Minimizing support thershold alittle bit
+rule2<-apriori(assoc_df,parameter =list(support=0.001,conf=0.75))
+rule2
+```
+
+```{r}
+# Viewing the rules extracted from these
+inspect(rule2[1:20])
+```
+
+```{r}
+# Mineral water seem to be standing out as a famous item. It is good to know which items are bought before mineral water for the management  to maximize the discounts on these products such as ground beef,light cream,olive oil,
+sorted<-sort(rule2,by="confidence",decreasing = TRUE)
+inspect(sorted[1:10])
+```
+```{r}
+# Getting items purchased before mineral water
+mineral<-subset(rule2,subset=rhs %pin% "mineral water")
+# Sorting items by their confidence level
+sorted_mineral<-sort(mineral,by="confidence",decreasing = TRUE)
+# Viewing the top 10 items
+inspect(sorted_mineral[1:10])
+# Ground beef,olive oil and cake seem to be standing out
+```
+
+```{r}
+# Getting items that are bought after eggs are bought
+eggs<-subset(rule2,subset=lhs %pin% "eggs")
+# Sorting items by their confidence level
+sorted_eggs<-sort(eggs,by="confidence",decreasing = TRUE)
+# Viewing the top 10 items
+inspect(sorted_eggs[1:10])
+# Mineral water is most likely to be bought when eggs are bought
+```
