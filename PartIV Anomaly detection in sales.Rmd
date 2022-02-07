@@ -1,0 +1,163 @@
+---
+title: "PartIV Anomaly detection in sales"
+author: "KIpsang"
+date: "2/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Defining the context.
+
+Being a Data analyst at Carrefour Kenya and are currently undertaking a project that will inform the marketing department on the most relevant marketing strategies that will result in the highest no. of sales (total price including tax). Your project has been divided into four parts where you’ll explore a recent marketing dataset by performing various unsupervised learning techniques and later providing recommendations based on your insights.
+
+
+# Part 4: Anomaly Detection in sales 
+
+We are going to use the provided dataset to check whether there are any anomalies in the given sales dataset. 
+
+# Main objective 
+The detect fraud in sales.
+
+# Defining the question
+
+## i)Specifying the Data Analytic Question
+Check whether there are any anomalies in the given sales dataset. 
+
+## ii)Defining the Metric for Success
+To detect and plot any anomalies in our dataset.
+
+
+# Implementing the solution 
+
+load the required packages.
+
+
+```{r}
+library(anomalize) 
+library(tidyverse) 
+library(tibble)
+library(tibbletime) 
+library(data.table)
+library(dplyr)
+```
+
+### loading the dataset
+
+```{r}
+df<- read.csv("http://bit.ly/CarreFourSalesDataset")
+#Lets preview the head
+head(df)
+```
+The dataset contains two columns that is sales and particular dates that those sales were done but dates are in string format.
+
+```{r}
+tail(df)
+```
+
+
+### Checking the dimensions of the dataset.
+```{r}
+dim(df)
+```
+It has 1000 observations on two variables that is dates and sales 
+
+### checking for missing values.
+
+```{r}
+colSums(is.na(df))
+```
+There are no missing values in the dataset
+
+### Checking the datatypes
+
+```{r}
+#data structure
+str(df)
+```
+
+Date column is a string and it needs to be converted to date using as.Date()
+ 
+```{r}
+df$Date <- as.Date(df$Date, format = "%m/%d/%Y")
+df$Date <- sort(df$Date, decreasing = FALSE)
+```
+
+#Rechecking the structure to confirm the operation 
+```{r}
+#data structure
+str(df)
+```
+
+### Convert the sales into a tibbletime object.
+
+```{r}
+library(timetk)
+```
+
+```{r}
+df$Date <- as.POSIXct(df$Date)
+```
+
+```{r}
+library(tibble)
+library(tibbletime) 
+```
+
+```{r}
+
+library(ggplot2)
+```
+
+```{r}
+df <- as_tibble(df)
+```
+
+## Anomaly Detection.
+
+
+
+### Decomposing
+
+```{r}
+df %>%
+time_decompose(Sales, method = 'stl', frequency = 'auto', trend = 'auto') %>%
+anomalize(remainder, method = 'gesd', alpha = 0.1, max_anoms = 0.5) %>%
+plot_anomaly_decomposition(ncol = 3, alpha_dots = 0.7)
+```
+
+### Recomposing
+
+ Using time_recompose() function to generate bands around the normal levels of observed values
+ 
+```{r}
+df %>%
+time_decompose(Sales, method = 'stl', frequency = 'auto', trend = 'auto') %>%
+anomalize(remainder, method = 'gesd', alpha = 0.1, max_anoms = 0.1) %>%
+time_recompose() %>%
+plot_anomalies(time_recomposed = TRUE, ncol = 3, alpha_dots = 0.5)
+```
+
+
+We can actually go ahead to determine the exact dates that had anomalies in our dataset.
+
+```{r}
+anomalies = df %>%
+time_decompose(Sales, method = 'stl', frequency = 'auto', trend = 'auto') %>%
+anomalize(remainder, method = 'gesd', alpha = 0.05, max_anoms = 0.1) %>%
+time_recompose() %>%
+filter(anomaly == 'Yes')
+
+anomalies
+```
+There are several anomalies in the carrefour dataset  between the 6th February 2019 and 30th march 2019
+
+# Conclusion
+
+There were several anomalies in the month of February and March
+
+# Recommendations
+
+carrerfour should review sales that happen between February and march  to investigate the reason why there were why anomalies between  February and  March.
